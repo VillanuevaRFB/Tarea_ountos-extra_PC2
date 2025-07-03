@@ -47,6 +47,7 @@ void enviar_entero(int valor){
   UCSR0B|=(1<<UDRIE0);
   _delay_ms(1);
 }
+
 //manual=PC0 y motor=PC1
 void config_ADC(void){
   ADMUX|=(1<<REFS0);
@@ -69,6 +70,15 @@ ISR(ADC_vect){
   }
   ADCSRA|=(1<<ADSC);
 }
+
+//PWM en PD6
+void config_PWM(void){
+  DDRD|=0x40;
+  TCCR0A|=(1<<COM0A1)|(1<<WGM01)|(1<<WGM00);
+  TCCR0B|=(1<<CS02)|(1<<CS00);//prescalador de 1024
+  OCR0A=200;//velocidad(0–255)
+}
+
 //motor en PD2 y PD3
 void config_motor(void){
   DDRD|=0x0C;
@@ -104,6 +114,7 @@ int main(void){
   config_USART();
   config_ADC();
   config_motor();
+  config_PWM();
   sei();
 
   float grados_manual=0;
@@ -120,16 +131,20 @@ int main(void){
 
     if(grados_motor<45.0||grados_motor>225.0){
       detener();
+      OCR0A=0;
     }
     else{
       if(grados_manual>grados_motor+2){
         avanzar();
+        OCR0A=200;
       }
       else if(grados_manual<grados_motor-2){
         retroceder();
+        OCR0A=200;
       }
       else{
         detener();
+        OCR0A=0;
       }
     }
 
@@ -141,7 +156,6 @@ int main(void){
       enviar_entero(manual_convertido);
       enviar_texto("°");
     }
-
     enviar_texto(" | Medido:");
     if(motor_convertido==-1){
       enviar_texto("Fuera de rango");
@@ -150,7 +164,6 @@ int main(void){
       enviar_entero(motor_convertido);
       enviar_texto("°");
     }
-
     enviar_texto("\r\n");
     _delay_ms(1);
   }
