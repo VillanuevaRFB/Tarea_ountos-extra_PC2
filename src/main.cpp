@@ -73,10 +73,10 @@ ISR(ADC_vect){
 
 //PWM en PD6
 void config_PWM(void){
-  DDRD|=0x40;
+  DDRD|=(1<<PD6);
   TCCR0A|=(1<<COM0A1)|(1<<WGM01)|(1<<WGM00);
-  TCCR0B|=(1<<CS02)|(1<<CS00);//prescalador de 1024
-  OCR0A=200;//velocidad(0–255)
+  TCCR0B|=(1<<CS01);//prescalador de 8
+  OCR0A=0;//velocidad(0–255)
 }
 
 //motor en PD2 y PD3
@@ -110,6 +110,12 @@ int convercion(float grados_reales){
   return(int)(grados_reales-45.0);
 }
 
+float error=0;
+float error_anterior=0;
+float derivada = 0;
+float kp=10.0;
+float kd=10.0;
+
 int main(void){
   config_USART();
   config_ADC();
@@ -129,18 +135,28 @@ int main(void){
     manual_convertido=convercion(grados_manual);
     motor_convertido=convercion(grados_motor);
 
+    error=grados_manual-grados_motor;
+    derivada=error-error_anterior;
+    error_anterior=error;
+
+    float control=kp*error+kd*derivada;
+
+    if (control<0)control=-control;
+    if (control<40)control=40;
+    if (control>255)control=255;
+
     if(grados_motor<45.0||grados_motor>225.0){
       detener();
       OCR0A=0;
     }
     else{
-      if(grados_manual>grados_motor+2){
+      if(error>2){
         avanzar();
-        OCR0A=200;
+        OCR0A=(int)control;
       }
-      else if(grados_manual<grados_motor-2){
+      else if(error<-2){
         retroceder();
-        OCR0A=200;
+        OCR0A=(int)control;
       }
       else{
         detener();
@@ -164,6 +180,8 @@ int main(void){
       enviar_entero(motor_convertido);
       enviar_texto("°");
     }
+    enviar_texto(" | PWM:");
+    enviar_entero((int)control);
     enviar_texto("\r\n");
     _delay_ms(1);
   }
